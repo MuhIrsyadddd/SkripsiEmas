@@ -1,6 +1,6 @@
-fastapi
-uvicorn
+Flask
 pandas
 scikit-learn
 tensorflow-cpu
 gunicorn
+numpy
