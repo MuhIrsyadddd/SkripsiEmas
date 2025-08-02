@@ -58,5 +58,6 @@ model.fit(
 )
 
 # === 7. Simpan model dalam format SavedModel (lebih efisien) ===
-model.save(SAVED_MODEL_PATH)
+# Ganti baris ini
+model.export(SAVED_MODEL_PATH)
 print(f"Model berhasil disimpan ke direktori: {SAVED_MODEL_PATH}")
