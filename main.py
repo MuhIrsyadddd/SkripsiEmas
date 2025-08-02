@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 app = Flask(__name__)
 
 # === Konfigurasi File ===
-SAVED_MODEL_PATH = "emas_saved_model"
+SAVED_MODEL_PATH = "/home/proyekai/SkripsiEmas/emas_saved_model"
 DATA_PATH = "Gold Price (2013-2023).csv"
 
 # === Global variables (dimuat sekali saat startup) ===
@@ -24,16 +24,16 @@ def load_model_and_data():
     try:
         print("Memuat model dan data Emas dari SavedModel...")
         model = tf.saved_model.load(SAVED_MODEL_PATH)
-        
+
         df = pd.read_csv(DATA_PATH)
         df['Price'] = df['Price'].str.replace(',', '').astype(float)
         df['Date'] = pd.to_datetime(df['Date'])
         df = df.sort_values('Date')
-        
+
         prices = df[['Price']].values
         scaler = MinMaxScaler(feature_range=(0, 1))
         scaler.fit(prices)
-        
+
         last_prices = prices[-60:]
         last_60_days = scaler.transform(last_prices)
         print("Model dan data Emas berhasil dimuat.")
@@ -41,33 +41,31 @@ def load_model_and_data():
         print(f"ERROR saat memuat model atau data Emas: {e}")
 
 # === PERUBAHAN DI SINI: Prediksi Harga Ke Depan ===
+# GANTI FUNGSI LAMA DENGAN VERSI BARU INI
 def predict_future_prices_optimized(last_60_days_input, days_ahead=360):
     """Prediksi 360 hari ke depan dengan random seed berbasis WIB."""
-    
-    # Membuat zona waktu WIB (UTC+7)
     wib_timezone = timezone(timedelta(hours=7))
-    
-    # Mengambil waktu saat ini di UTC, lalu konversi ke WIB
     now_wib = datetime.now(timezone.utc).astimezone(wib_timezone)
-    
-    # Gunakan tanggal dari zona waktu WIB sebagai seed
-    # Ini memastikan seed hanya berubah setelah pukul 00:00 WIB
     date_seed = int(now_wib.strftime("%Y%m%d"))
     np.random.seed(date_seed)
-    
-    # Proses prediksi tetap sama
+
     temp_input = list(last_60_days_input.flatten())
     predictions_scaled = []
-    
+
     x_input = np.array(temp_input).reshape(1, -1, 1)
     x_input_tensor = tf.convert_to_tensor(x_input, dtype=tf.float32)
 
     for _ in range(days_ahead):
-        pred_tensor = model.signatures['serving_default'](x_input_tensor)['dense']
+        # --- PERBAIKAN DI SINI ---
+        # Memanggil model dan mengambil output pertama, apa pun namanya
+        pred_dict = model.signatures['serving_default'](x_input_tensor)
+        pred_tensor = list(pred_dict.values())[0] # Mengambil output pertama
+        # -------------------------
+
         pred_scaled = pred_tensor.numpy()[0][0]
-        
+
         predictions_scaled.append(pred_scaled)
-        
+
         new_input_list = x_input.flatten().tolist()[1:]
         new_input_list.append(pred_scaled)
         x_input = np.array(new_input_list).reshape(1, -1, 1)
@@ -93,7 +91,7 @@ def predict_gold_v3():
             return jsonify({"error": "Harap kirim 'income' dan 'expenses' dalam format JSON."}), 400
 
         available_funds = float(data['income']) - float(data['expenses'])
-        
+
         future_prices_360_days = predict_future_prices_optimized(last_60_days, days_ahead=360)
 
         prices_hourly = np.linspace(future_prices_360_days[0], future_prices_360_days[1], 24).tolist()
